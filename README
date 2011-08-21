@@ -1,0 +1,1 @@
+A simple Fastx(Fasta/Fastq) class that allows reading and writing to and from streams.  Most of the code is untested, just been writing it for my own knowledge 
