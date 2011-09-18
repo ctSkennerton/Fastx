@@ -33,14 +33,78 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <algorithm>
 #include "Fastx.h"
 
+std::istream& Fastx::read(std::istream& stream)
+{
+    this->clear();
+    try 
+    {
+        char c = stream.get();
+        if ('>' == c )
+        {
+            FX_Fasta = true;
+        }
+        else if ('\n' == c)
+        {
+            std::cout<<"new line"<<std::endl;
+        }
+        else if ('@' != c) 
+        {
+            throw "badFormat! The first char in a file should be a '>' or '@' for fasta or fastq files";
+        }
+    } catch (char * c) {
+        std::cerr<<c<<std::endl;
+    }
+    
+ 
+    getline(stream,FX_Header);
 
+    if (FX_Fasta) 
+    {        
+        char c;
+        while (stream >> c) 
+        {
+            if (c == '>' || stream.eof()) 
+            {
+                stream.putback(c);
+                break;
+            }
+            else if (c != '\n')
+            {
+                FX_Sequence += c; 
+            }
+        }
+    }
+    // it's Fastq
+    // only thinks about sequencing type 4 line files
+    else
+    {
+        getline(stream,FX_Sequence);
+        getline(stream,FX_Comment);
+        getline(stream,FX_Quality);
+
+    }   
+    FX_SeqLength = FX_Sequence.length();
+    return stream;
+}
+
+std::ostream& Fastx::print (std::ostream& s)
+{
+   if (FX_Fasta) {
+       s<<'>'<<FX_Header<<std::endl<<FX_Sequence;
+   } else {
+       s<<'@'<<FX_Header<<std::endl<<FX_Sequence<<std::endl<<FX_Comment<<std::endl<<FX_Quality;
+   }
+    return s;
+}
+               
 float Fastx::GCContent(void)
 {
-    std::string::iterator seq_iter = mSequence.begin();
+    std::string::iterator seq_iter = FX_Sequence.begin();
     float count = 0.0;
-    while (seq_iter != mSequence.end()) 
+    while (seq_iter != FX_Sequence.end()) 
     {
         switch (*seq_iter) 
         {
@@ -55,7 +119,7 @@ float Fastx::GCContent(void)
         }
         seq_iter++;
     }
-    return count / (float)mLength;
+    return count / (float)FX_SeqLength;
 }
 
 
@@ -63,8 +127,8 @@ float Fastx::GCSkew(void)
 {
     float g = 0.0;
     float c = 0.0;
-    std::string::iterator seq_iter = mSequence.begin();
-    while (seq_iter != mSequence.end()) 
+    std::string::iterator seq_iter = FX_Sequence.begin();
+    while (seq_iter != FX_Sequence.end()) 
     {
         switch (*seq_iter) 
         {
@@ -86,9 +150,9 @@ float Fastx::GCSkew(void)
 
 float Fastx::ATContent(void)
 {
-    std::string::iterator seq_iter = mSequence.begin();
+    std::string::iterator seq_iter = FX_Sequence.begin();
     float count = 0.0;
-    while (seq_iter != mSequence.end()) 
+    while (seq_iter != FX_Sequence.end()) 
     {
         switch (*seq_iter) 
         {
@@ -103,7 +167,7 @@ float Fastx::ATContent(void)
         }
         seq_iter++;
     }
-    return count / (float)mLength;
+    return count / (float)FX_SeqLength;
 }
 
 
@@ -111,8 +175,8 @@ float Fastx::ATSkew(void)
 {
     float a = 0.0;
     float t = 0.0;
-    std::string::iterator seq_iter = mSequence.begin();
-    while (seq_iter != mSequence.end()) 
+    std::string::iterator seq_iter = FX_Sequence.begin();
+    while (seq_iter != FX_Sequence.end()) 
     {
         switch (*seq_iter) 
         {
@@ -131,102 +195,41 @@ float Fastx::ATSkew(void)
     }
     return ((a-t)/(a+t));
 }
-
-std::istream& Fasta::read(std::istream& stream)
-{    
-    try 
-    {
-        if ( '>' != stream.get())
-        { 
-            throw "badFormat, file not in FASTA format";
-        }
-    } catch (char * c) 
-    {
-        std::cerr<<c<<std::endl;
-    }
-    
-    
-    //mHeader.clear();
-    mHeader.reserve(200);
-    
-    stream >> mHeader;
-    stream.get();
-    
-    //mSequence.clear();
-    mSequence.reserve(1000);
-    // check that there is some sequence associated with this header
-    try 
-    {
-        if(('>' == stream.peek()) || !stream)
-        {
-            throw "badFormat, no sequence in record";
-        }
-    } catch (char * c) 
-    {
-        std::cerr<<c<<std::endl;
-    }
-    
-    
-    // load the sequence into a stringstream
-    std::stringstream ss;
-    std::string tmp;
-    while ('>' != stream.peek() && stream.good()) 
-    {
-        stream >> tmp;
-        ss << tmp;
-        stream.get();
-    }
-    
-    // copy the stringstream onto our sequence
-    mSequence = ss.str();
-    mLength = mSequence.length();
-    return stream;
-}
-
-std::ostream& Fasta::print(std::ostream& s)
+Fastx Fastx::subseq(int b, int l)
 {
-    s<<'>'<<mHeader<<std::endl<<mSequence;
-    return s;
-}
-
-
-Fasta Fasta::subseq(int b, int l)
-{
-    Fasta tmp;
-    
-    tmp.mSequence = this->mSequence.substr(b,l);
-    tmp.mHeader = this->mHeader;
-    tmp.mLength = tmp.mSequence.length();
+    Fastx tmp;
+    tmp.FX_Sequence = this->FX_Sequence.substr(b,l);
+    tmp.FX_Header = this->FX_Header;
+    tmp.FX_SeqLength = tmp.FX_Sequence.length();
+    if (!FX_Fasta) {
+        tmp.FX_Quality = this->FX_Quality.substr(b,l);
+        tmp.FX_Comment = this->FX_Comment;
+    }
     
     return tmp;
     
 }
 
-Fasta Fasta::subseq(int b)
+Fastx Fastx::subseq(int b)
 {
-    Fasta tmp;
-    tmp.mSequence = this->mSequence.substr(b);
-    tmp.mHeader = this->mHeader;
-    tmp.mLength = tmp.mSequence.length();
+    Fastx tmp;
+    tmp.FX_Sequence = this->FX_Sequence.substr(b);
+    tmp.FX_Header = this->FX_Header;
+    tmp.FX_SeqLength = tmp.FX_Sequence.length();
+    if (!FX_Fasta) {
+        tmp.FX_Quality = this->FX_Quality.substr(b);
+        tmp.FX_Comment = this->FX_Comment;
+    }
     return tmp;
 }
 
-Fasta Fasta::truncate(int b)
+Fastx Fastx::reverseComplement()
 {
-    Fasta tmp;
-    tmp.mSequence = this->mSequence.substr(b);
-    tmp.mHeader = this->mHeader;
-    tmp.mLength = tmp.mSequence.length();
-    return tmp;
-}
-
-Fasta Fasta::reverseComplement()
-{
-    Fasta tmp;
-    tmp.header(this->header());
+    Fastx tmp;
+    tmp.FX_Header = this->FX_Header;
     std::stringstream revcomp_string;
     std::string::reverse_iterator rit;
-    for ( rit = mSequence.rbegin() ; rit < mSequence.rend(); rit++ )
+    for ( rit = FX_Sequence.rbegin() ; rit < FX_Sequence.rend(); rit++ )
     {
 		switch ((*rit)) 
         {
@@ -297,275 +300,43 @@ Fasta Fasta::reverseComplement()
                 break;
 		}
 	}
-    tmp.seq(revcomp_string.str());
+    tmp.FX_Sequence =revcomp_string.str();
+    if (!FX_Fasta) {
+        std::string::reverse_iterator rit = FX_Quality.rbegin();
+        while (rit != FX_Quality.rend()) {
+            tmp.FX_Quality += *rit;
+            rit++;
+        }
+        tmp.FX_Comment = this->FX_Comment;
+    }
     return tmp;
 }
 
-Fasta Fasta::laurenize()
+Fastx Fastx::laurenize()
 {
-    Fasta seq2 = this->reverseComplement();
+    Fastx seq2 = this->reverseComplement();
     if ((*this) < seq2)
     {
         return (*this);
     }
     return seq2;
 }
-
-std::istream& Fastq::read(std::istream& stream)
-{
-    try 
-    {
-        if ('@' != stream.get()) 
-        {
-            throw "badFormat, file not in FASTQ format";
-        }
-    } catch (char * c) 
-    {
-        std::cerr<<c<<std::endl;
-    }
-    //    if ( '@' != stream.get())
-    //    { 
-    //        
-    //    }
-    
-    mHeader.reserve(200);
-    stream >> mHeader;
-    mSequence.reserve(1000);
-    
-    // remove the trailing newline
-    stream.get();
-    // check that there is some sequence associated with this header
-    try 
-    {
-        if(('@' == stream.peek()) || ('+' == stream.peek()) || !stream)
-        {
-            throw "badFormat, no sequence in record";
-        }
-    } catch (char * c) 
-    {
-        std::cerr<<c<<std::endl;
-    }
-    
-    
-    // read in all of the lines of this sequence
-    std::stringstream ss;
-    std::string tmp;
-    while (('+' != stream.peek()) && ('@' != stream.peek()) && stream.good()) 
-    {
-        stream >> tmp;
-        ss << tmp;
-        stream.get();
-    }
-    
-    mSequence = ss.str();
-    
-    //stream.get();
-    try 
-    {
-        if (('+' != stream.get()) || (stream.eof())) 
-        {
-            throw "badFormat, this record has no comment line";
-        }
-    } catch (char * c)
-    {
-        std::cerr<<c<<std::endl;
-    }
-    
-    
-    mComment.clear();
-    mComment.reserve(200);
-    stream >> mComment;
-    
-    stream.get();
-    // check that there is some quality associated with this header
-    try 
-    {
-        if( !stream)
-        {
-            throw "badFormat, no quality in record";
-        }
-    } catch (char * c) 
-    {
-        std::cerr<<c<<std::endl;
-    }
-    
-    
-    mQuality.clear();
-    mQuality.reserve(1000);
-    // read in all of the lines of Quality scores for this sequence
-    std::stringstream jj;
-    std::string tp;
-    do 
-    {
-        stream >> tp;
-        jj << tp;
-        stream.get();
-    } while (('+' != stream.peek()) && ('@' != stream.peek()) && (!(stream.eof())));
-    
-    mQuality = jj.str();
-    
-    mLength = mSequence.length();
-    return stream;
-}
-
-std::ostream& Fastq::print(std::ostream& s)
-{
-    s<<'@'<<mHeader<<std::endl<<mSequence<<std::endl<<'+'<<mComment<<std::endl<<mQuality;
-    return s;
-}
-
-Fastq Fastq::subseq(int b, int l)
-{
-    Fastq tmp;
-    
-    tmp.mSequence = this->mSequence.substr(b,l);
-    tmp.mHeader = this->mHeader;
-    tmp.mComment = this->mComment;
-    tmp.mQuality = this->mQuality.substr(b,l);
-    tmp.mLength = tmp.mSequence.length();
-    
-    return tmp;
-    
-}
-
-Fastq Fastq::subseq(int b)
-{
-    Fastq tmp;
-    tmp.mSequence = this->mSequence.substr(b);
-    tmp.mHeader = this->mHeader;
-    tmp.mComment = this->mComment;
-    tmp.mQuality = this->mQuality.substr(b);
-    tmp.mLength = tmp.mSequence.length();
-    return tmp;
-}
-
-Fastq Fastq::truncate(int b)
-{
-    Fastq tmp;
-    tmp.mSequence = this->mSequence.substr(b);
-    tmp.mHeader = this->mHeader;
-    tmp.mComment = this->mComment;
-    tmp.mQuality = this->mQuality.substr(b);
-    tmp.mLength = tmp.mSequence.length();
-    return tmp;
-}
-
-Fastq Fastq::reverseComplement()
-{
-    Fastq tmp;
-    tmp.header(this->header());
-    tmp.comment(this->comment());
-    
-    std::stringstream revcomp_string;
-    std::stringstream rev_qaul;
-    std::string::reverse_iterator rit = mSequence.rbegin();
-    std::string::reverse_iterator qual_rit = mQuality.rbegin();
-    
-    while (rit != mSequence.rend()) 
-    {
-		switch ((*rit)) 
-        {
-            case 'A':
-            case 'a':
-                revcomp_string << 'T';
-                break;
-            case 'C':
-            case 'c':
-                revcomp_string << 'G';
-                break;
-            case 'G':
-            case 'g':
-                revcomp_string << 'C';
-                break;
-            case 'T':
-            case 't':
-            case 'U':
-            case 'u':
-                revcomp_string << 'A';
-                break;
-            case 'N':
-            case 'n':
-                revcomp_string << 'N';
-                break;
-            case 'M':
-            case 'm':
-                revcomp_string <<'K'; 
-                break;
-            case 'R':
-            case 'r':
-                revcomp_string << 'Y';
-                break;
-            case 'W':
-            case 'w':
-                revcomp_string << 'W';
-                break;
-            case 'S':
-            case 's':
-                revcomp_string << 'S';
-                break;
-            case 'Y':
-            case 'y':
-                revcomp_string << 'R';
-                break;
-            case 'K':
-            case 'k':
-                revcomp_string << 'M';
-                break;
-            case 'V':
-            case 'v':
-                revcomp_string << 'B';
-                break;
-            case 'H':
-            case 'h':
-                revcomp_string << 'D';
-                break;
-            case 'D':
-            case 'd':
-                revcomp_string << 'H';
-                break;
-            case 'B':
-            case 'b':
-                revcomp_string << 'V';
-                break;
-            default:
-                revcomp_string << 'N';
-                break;
-		}
-        rev_qaul << *qual_rit;
-        rit++;
-        qual_rit++;
-	}
-    tmp.seq(revcomp_string.str());
-    tmp.qual(rev_qaul.str());
-    return tmp;
-}
-
-Fastq Fastq::laurenize()
-{
-    Fastq seq2 = this->reverseComplement();
-    if ((*this) < seq2)
-    {
-        return (*this);
-    }
-    return seq2;
-}
-
 // change the single ascii values into their corespnding Phread quality score
-void Fastq::convertQualityToPhreadScore(int qualType)
+std::string Fastx::qualityToPhreadScoreAsString(qualType qt)
 {
     std::stringstream phred;
-    std::string::iterator iter = mQuality.begin();
-    short Q;
-    while (iter != mQuality.end()) 
+    std::string::iterator iter = FX_Quality.begin();
+    int Q;
+    while (iter != FX_Quality.end()) 
     {
-        switch (qualType) 
+        switch (qt) 
         {
             case sanger:
-                Q = (*iter) - 33;
+                Q = (int)(*iter - 33);
                 phred << Q;
                 break;
             case illumina:
-                Q = (*iter) - 64;
+                Q = (int)(*iter - 64);
                 phred << Q;
                 break;
             default:
@@ -573,22 +344,46 @@ void Fastq::convertQualityToPhreadScore(int qualType)
         }
         iter++;
     }
-    mQuality = phred.str();
+    return phred.str();
     
 }
-inline void Fastq::convertPhreadScoreToQuality(void)
+
+// change the single ascii values into their corespnding Phread quality score
+std::vector<int> Fastx::qualityToPhreadScoreAsVector(qualType qt)
 {
-    //convertQualityToPhreadScore(sanger);
+    std::vector<int> phred;
+    std::string::iterator iter = FX_Quality.begin();
+    int Q;
+    while (iter != FX_Quality.end()) 
+    {
+        switch (qt) 
+        {
+            case sanger:
+                Q = (int)(*iter - 33);
+                phred.push_back(Q);
+                break;
+            case illumina:
+                Q = (int)(*iter - 64);
+                phred.push_back(Q);
+                break;
+            default:
+                break;
+        }
+        iter++;
+    }
+    return phred;
+    
 }
 
-void Fastq::convertPhreadScoreToQuality(int qualType)
+
+void Fastx::convertPhreadScoreToQuality(qualType qt)
 {
     //std::stringstream qual;
-    std::string::iterator iter = mQuality.begin();
-    while (iter != mQuality.end()) 
+    std::string::iterator iter = FX_Quality.begin();
+    while (iter != FX_Quality.end()) 
     {
         //$q = chr(($Q<=93? $Q : 93) + 33);
-        switch (qualType) 
+        switch (qt) 
         {
             case sanger:
                 *iter = (char)(((*iter) <= 93 ? (*iter) : 93) + 33);
@@ -604,24 +399,19 @@ void Fastq::convertPhreadScoreToQuality(int qualType)
     
 }
 
-// change the single ascii values into their corespnding Phread quality score
-// assuming that the quality scores are in sanger format
-inline void Fastq::convertQualityToPhreadScore(void)
-{
-    convertQualityToPhreadScore(sanger);
-}
+
 
 // change the current ascii quality character into the corresponding Sanger type quality character
-void Fastq::convertQualityToSangerAsciiValues(int qualType)
+void Fastx::convertQualityToSangerAsciiValues(qualType qt)
 {
     std::string::iterator qual_iter;
-    switch (qualType) 
+    switch (qt) 
     {
         case illumina:
-            qual_iter = mQuality.begin();
-            while (qual_iter != mQuality.end()) 
+            qual_iter = FX_Quality.begin();
+            while (qual_iter != FX_Quality.end()) 
             {
-                *qual_iter = *qual_iter - 31;
+                *qual_iter =(char) (*qual_iter - 31);
                 qual_iter++;
             }
             break;
@@ -633,24 +423,18 @@ void Fastq::convertQualityToSangerAsciiValues(int qualType)
     
 }
 
-// change the current ascii quality character into the corresponding Sanger type quality character
-// assumes that the current quality is in illumina format
-inline void Fastq::convertQualityToSangerAsciiValues(void)
-{
-    convertQualityToSangerAsciiValues(illumina);
-} 
 
 // change the current quality values into their corresponding illumina values
-void Fastq::convertQualityToIlluminaAsciiValues(int qualType)
+void Fastx::convertQualityToIlluminaAsciiValues(qualType qt)
 {
     std::string::iterator qual_iter;
-    switch (qualType) 
+    switch (qt) 
     {
         case sanger:
-            qual_iter = mQuality.begin();
-            while (qual_iter != mQuality.end()) 
+            qual_iter = FX_Quality.begin();
+            while (qual_iter != FX_Quality.end()) 
             {
-                *qual_iter = *qual_iter + 31;
+                *qual_iter = (char)(*qual_iter + 31);
                 qual_iter++;
             }
             break;
@@ -661,34 +445,42 @@ void Fastq::convertQualityToIlluminaAsciiValues(int qualType)
     }
 }
 
-inline void Fastq::convertQualityToIlluminaAsciiValues(void)
-{
-    convertQualityToIlluminaAsciiValues(sanger);
-}
 
-std::ostream & operator<< (std::ostream & s, Fastx & c)
+std::ostream & operator<< (std::ostream& s, Fastx * c)
 {
-    return c.print (s);
+    return c->print (s);
     
 }
 
-std::istream & operator>> (std::istream & s, Fastx &c)
+std::istream & operator>> (std::istream& s, Fastx * c)
 {
-    return c.read (s);
+    return c->read (s);
 }
 
-bool operator<(Fastx& f1, Fastx& f2)
+
+std::ostream& operator<< (std::ostream& s, Fastx& c)
 {
-    if (f1.mSequence < f2.mSequence) 
+    return c.print(s);
+    
+}
+
+std::istream& operator>> (std::istream & s, Fastx& c)
+{
+    return c.read(s);
+}
+
+bool operator< (Fastx& f1, Fastx& f2)
+{
+    if (f1.FX_Sequence < f2.FX_Sequence) 
     {
         return true;
     }
     return false;
 }
 
-bool operator>(Fastx& f1, Fastx& f2)
+bool operator> (Fastx& f1, Fastx& f2)
 {
-    if (f1.mSequence > f2.mSequence) 
+    if (f1.FX_Sequence > f2.FX_Sequence) 
     {
         return true;
     }

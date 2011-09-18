@@ -30,21 +30,26 @@
  *                               A
  */
 #include "Fastx.h"
+#include "gzstream.h"
 #include <iostream>
 #include <fstream>
+
+
+
 int main(int argc, char * argv[])
 {
-  std::ifstream f;
   
-  f.open(argv[1]);
+    igzstream f(argv[1]);
+    
     if(f.good())
     {
-        do
-        {
-          Fastq ff;
-          f >> ff;
-          std::cout<<ff<<std::endl;
-        }while(f.good());
+        do {
+            Fastx ff;
+            f >> ff;
+            std::cout<<ff<<std::endl;
+        } while (f.good());
+
+        f.close();
     }
     else
     {

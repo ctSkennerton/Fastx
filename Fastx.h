@@ -34,14 +34,22 @@
 #define crass_Fastx_h
 
 #include <string>
+#include <vector>
+
 class Fastx {
     
     
 public:
+    
+    enum qualType {sanger, illumina};
+
     //members
-    std::string mHeader;
-    std::string mSequence;
-    size_t      mLength;
+    std::string FX_Header;
+    std::string FX_Sequence;
+    std::string FX_Quality;
+    std::string FX_Comment;
+    size_t      FX_SeqLength;
+    bool        FX_Fasta;
     
     // constructor
     Fastx(void)
@@ -51,55 +59,111 @@ public:
     virtual ~Fastx(void)
     {}
     
+    void clear(void)
+    {
+        FX_Comment.clear();
+        FX_Header.clear();
+        FX_Quality.clear();
+        FX_Fasta = false;
+        FX_SeqLength = 0;
+        FX_Sequence.clear();
+    }
     // Getters & Setters
     inline std::string seq(void)
     {
-        return mSequence;
+        return FX_Sequence;
     }
     inline void seq(std::string s)
     {
-        mSequence = s;
+        FX_Sequence = s;
+        FX_SeqLength = s.length();
     }
     
     inline void seq(const char * s)
     {
-        mSequence = s;
+        FX_Sequence = s;
+        FX_SeqLength = strlen(s);
     }    
     inline std::string header(void)
     {
-        return mHeader;
+        return FX_Header;
     }
     
     inline void header(std::string h)
     {
-        mHeader = h;
+        FX_Header = h;
     }
     
     inline void header(const char * h)
     {
-        mHeader = h;
+        FX_Header = h;
     } 
+    inline void comment(std::string c)
+    {
+        FX_Comment = c;
+    }
+    inline void comment(const char * c)
+    {
+        FX_Comment = c;
+    }
+    inline std::string comment(void)
+    {
+        return FX_Comment;
+    }
+    inline void quality(std::string q)
+    {
+        FX_Quality = q;
+    }
+    inline void quality(const char * q)
+    {
+        FX_Quality = q;
+    }
+    inline std::string quality(void)
+    {
+        return FX_Quality;
+    }
+    inline size_t length(void)
+    {
+        return FX_SeqLength;
+    }
+
+    
     
     // member functions
+    
+    std::istream& read(std::istream& stream);
+    std::ostream& print (std::ostream& s);
+
+    
     inline std::string substr(int begin, int length)
     {
-        return mSequence.substr(begin, length);
+        return FX_Sequence.substr(begin, length);
     }
     
     inline std::string substr(int begin)
     {
-        return mSequence.substr(begin);
+        return FX_Sequence.substr(begin);
     }
     
     inline char nucleotideAt(int ref)
     {
-        return mSequence.at(ref);
+        return FX_Sequence.at(ref);
     }
     
-    inline char at(int ref)
+    inline char qualityAt(int ref)
     {
-        return mSequence.at(ref);
+        return FX_Quality.at(ref);
     }
+    
+    Fastx subseq(int begin, int length);
+    
+    Fastx subseq(int begin);
+    
+    inline Fastx truncate(int begin)
+    {
+        return subseq(begin);
+    }
+    
     
     float GCContent(void);
     
@@ -119,194 +183,60 @@ public:
     
     float ATSkew(void);
     
-    // virtual functions
-    virtual std::istream & read (std::istream & s) = 0;
     
-    virtual std::ostream & print (std::ostream & s) = 0;
+    Fastx reverseComplement(void);
     
-    virtual std::string qual(void) {return "";};
+    Fastx laurenize(void);
     
-    virtual std::string comment(void) {return "";};
+    inline Fastx lowestLexicographicalForm(void)
+    {
+        return laurenize();
+    }
     
-    virtual char qualityAt(int ref){return 0;};
+    void convertQualityToSangerAsciiValues(qualType qt);
     
-    virtual void convertQualityToPhreadScore(void){};
+    inline void convertQualityToSangerAsciiValues(void)
+    {
+        convertQualityToSangerAsciiValues(illumina);
+    }     
     
-    virtual void convertQualityToPhreadScore(int qualType){};
+    void convertQualityToIlluminaAsciiValues(qualType qt);
     
-    virtual void convertPhreadScoreToQuality(void){};
+    inline void convertQualityToIlluminaAsciiValues(void)
+    {
+        convertQualityToIlluminaAsciiValues(sanger);
+    } 
     
-    virtual void convertPhreadScoreToQuality(int qualType){};
+    std::vector<int> qualityToPhreadScoreAsVector(qualType qt);
     
-    virtual void convertQualityToSangerAsciiValues(void){};
+    inline std::vector<int> qualityToPhreadScoreAsVector(void)
+    {
+        qualityToPhreadScoreAsVector(sanger);
+    }    
+    std::string qualityToPhreadScoreAsString(qualType qt);
     
-    virtual void convertQualityToSangerAsciiValues(int qualType){};
+    inline std::string qualityToPhreadScoreAsString(void)
+    {
+        qualityToPhreadScoreAsString(sanger);
+    }
+    void convertPhreadScoreToQuality(qualType qt);
     
-    virtual void convertQualityToIlluminaAsciiValues(void){};
-    
-    virtual void convertQualityToIlluminaAsciiValues(int qualType){};
-    
-    
-    
-};
+    inline void convertPhreadScoreToQuality(void)
+    {
+        return convertPhreadScoreToQuality(sanger);
+    }
 
-class Fastq : public Fastx {
-    
-    
-public:
-    enum qualType {sanger, illumina};
-    
-    std::string mComment;
-    std::string mQuality;
-    
-    Fastq(void)
-    {
-        mHeader = "";
-        mSequence = "";
-        mComment = "";
-        mQuality = "";
-        mLength = 0;
-        
-    }
-    Fastq(std::string& h, std::string& s, std::string& c, std::string& q)
-    {
-        mHeader = h;
-        mSequence = s;
-        mComment = c;
-        mQuality = q;
-        mLength = s.length();
-    }
-    
-    Fastq(const char * h, const char * s, const char * c, const char * q)
-    {
-        mHeader = h;
-        mSequence = s;
-        mComment = c;
-        mQuality = q;
-        mLength = strlen(s);
-    }
-    
-    inline std::string qual(void)
-    {
-        return mQuality;
-    }
-    inline std::string comment(void)
-    {
-        return mComment;
-    }
-    inline void qual(std::string q)
-    {
-        mQuality = q;
-    }
-    inline void comment(std::string c)
-    {
-        mComment = c;
-    }
-    inline void qual(const char * q)
-    {
-        mQuality = q;
-    }
-    inline void comment(const char * c)
-    {
-        mComment = c;
-    }
-    inline char qualityAt(int ref)
-    {
-        return mQuality.at(ref);
-    }
-    
-    Fastq reverseComplement(void);
-    
-    Fastq laurenize(void);
-    
-    Fastq subseq(int begin, int length);
-    
-    Fastq subseq(int begin);
-    
-    Fastq truncate(int begin);
-    
-    //Fasta to_fasta(void);
-    
-    std::istream& read(std::istream& s);
-    
-    std::ostream& print(std::ostream& s);
-    
-    inline void convertQualityToPhreadScore(void);
-    
-    void convertQualityToPhreadScore(int qualType);
-    
-    inline void convertPhreadScoreToQuality(void);
-    
-    void convertPhreadScoreToQuality(int qualType);
-    
-    inline void convertQualityToSangerAsciiValues(void);
-    
-    void convertQualityToSangerAsciiValues(int qualType);
-    
-    inline void convertQualityToIlluminaAsciiValues(void);
-    
-    void convertQualityToIlluminaAsciiValues(int qualType);
-    
-    
 };
 
 
-class Fasta : public Fastx {
-    
-    
-public:
-    Fasta(void)
-    {
-        mHeader = "";
-        mSequence = "";
-        mLength = 0;
-    }
-    
-    Fasta(std::string& h, std::string& s)
-    {
-        mHeader = h;
-        mSequence = s;
-        mLength = s.length();
-    }
-    Fasta(const char * h, const char * s)
-    {
-        mHeader = h;
-        mSequence = s;
-        mLength = strlen(s);
-    }  
-    
-    ~Fasta(void)
-    {
-        mHeader.clear();
-        mSequence.clear();
-    }
-    
-    Fasta reverseComplement(void);
-    
-    Fasta laurenize(void);
-    
-    Fasta subseq(int begin, int length);
-    
-    Fasta subseq(int begin);
-    
-    Fasta truncate(int begin);
-    
-    std::istream& read(std::istream& s);
-    
-    std::ostream& print(std::ostream& s);
-    
-    
-    
-    
-};
 
-std::ostream& operator<< (std::ostream& s, Fastx& c);
+// overloaded operators to deal with normal variables
+std::ostream& operator<< (std::ostream& s,  Fastx& c);
 
-std::istream& operator>> (std::istream& s, Fastx& c);
+std::istream& operator>> (std::istream& s,  Fastx& c);
 
 bool operator<(Fastx& f1, Fastx& f2);
 
 bool operator>(Fastx& f1, Fastx& f2);
-
 
 #endif
